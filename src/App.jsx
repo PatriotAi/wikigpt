@@ -5,6 +5,7 @@ export default function App() {
   const [link, setLink] = useState("");
 
   const generateLink = () => {
+    if (!query.trim()) return;
     const encoded = encodeURIComponent(query);
     const url = `${window.location.origin}/search?q=${encoded}`;
     setLink(url);
