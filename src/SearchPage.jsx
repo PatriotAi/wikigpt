@@ -6,7 +6,7 @@ export default function SearchPage() {
   const params = new URLSearchParams(window.location.search);
   const q = params.get("q");
 
-  // Анімація набору тексту
+  // Animation: Tippen simulieren
   useEffect(() => {
     if (q) {
       let i = 0;
@@ -22,7 +22,7 @@ export default function SearchPage() {
     q || ""
   )}`;
 
-  // Виклик API через власний ключ
+  // API Anfrage mit eigenem Key
   const askGPT = async () => {
     const apiKey =
       localStorage.getItem("OPENAI_API_KEY") || process.env.OPENAI_API_KEY;
@@ -31,20 +31,24 @@ export default function SearchPage() {
       return;
     }
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-3.5-turbo",
-        messages: [{ role: "user", content: q }],
-      }),
-    });
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [{ role: "user", content: q }],
+        }),
+      });
 
-    const data = await res.json();
-    setAnswer(data.choices?.[0]?.message?.content || "Помилка");
+      const data = await res.json();
+      setAnswer(data.choices?.[0]?.message?.content || "Помилка");
+    } catch (err) {
+      setAnswer("Сталася помилка при зверненні до API ❌");
+    }
   };
 
   return (
@@ -56,6 +60,7 @@ export default function SearchPage() {
 
       {typed === q && q && (
         <div className="mt-6 flex flex-col gap-3">
+          {/* Kostenlos: Weiterleitung zum Wiki-Analysator */}
           <a
             href={wikiLink}
             target="_blank"
@@ -65,6 +70,7 @@ export default function SearchPage() {
             Відкрити в Wiki-Аналізаторі
           </a>
 
+          {/* Direktantwort über API */}
           <button
             onClick={askGPT}
             className="bg-green-600 text-white px-6 py-2 rounded-xl shadow"
@@ -72,6 +78,7 @@ export default function SearchPage() {
             Отримати відповідь тут
           </button>
 
+          {/* Link kopieren */}
           <button
             onClick={() => navigator.clipboard.writeText(window.location.href)}
             className="bg-gray-200 px-6 py-2 rounded-xl shadow"
@@ -81,6 +88,7 @@ export default function SearchPage() {
         </div>
       )}
 
+      {/* GPT Antwort */}
       {answer && (
         <div className="mt-6 p-4 border rounded-xl shadow w-96 bg-gray-50 text-sm whitespace-pre-wrap">
           {answer}
