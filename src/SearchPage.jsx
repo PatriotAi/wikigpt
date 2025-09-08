@@ -2,9 +2,11 @@ import React, { useEffect, useState } from "react";
 
 export default function SearchPage() {
   const [typed, setTyped] = useState("");
+  const [answer, setAnswer] = useState(null);
   const params = new URLSearchParams(window.location.search);
   const q = params.get("q");
 
+  // Анімація набору тексту
   useEffect(() => {
     if (q) {
       let i = 0;
@@ -20,8 +22,33 @@ export default function SearchPage() {
     q || ""
   )}`;
 
+  // Виклик API через власний ключ
+  const askGPT = async () => {
+    const apiKey =
+      localStorage.getItem("OPENAI_API_KEY") || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      alert("У вас немає API ключа! Додайте свій у налаштуваннях.");
+      return;
+    }
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [{ role: "user", content: q }],
+      }),
+    });
+
+    const data = await res.json();
+    setAnswer(data.choices?.[0]?.message?.content || "Помилка");
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-white">
+    <div className="flex flex-col items-center justify-center h-screen bg-white p-6">
       <div className="border px-4 py-2 rounded-xl shadow w-96">
         <input className="w-full outline-none" value={typed} readOnly />
       </div>
@@ -37,12 +64,26 @@ export default function SearchPage() {
           >
             Відкрити в Wiki-Аналізаторі
           </a>
+
+          <button
+            onClick={askGPT}
+            className="bg-green-600 text-white px-6 py-2 rounded-xl shadow"
+          >
+            Отримати відповідь тут
+          </button>
+
           <button
             onClick={() => navigator.clipboard.writeText(window.location.href)}
             className="bg-gray-200 px-6 py-2 rounded-xl shadow"
           >
             Скопіювати посилання
           </button>
+        </div>
+      )}
+
+      {answer && (
+        <div className="mt-6 p-4 border rounded-xl shadow w-96 bg-gray-50 text-sm whitespace-pre-wrap">
+          {answer}
         </div>
       )}
     </div>
