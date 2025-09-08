@@ -37,4 +37,20 @@ export default function App() {
       )}
     </div>
   );
+  const saveKey = () => {
+  const key = prompt("Введіть ваш OpenAI API ключ:");
+  if (key) {
+    localStorage.setItem("OPENAI_API_KEY", key);
+    alert("Ключ збережено ✅");
+  }
+};
+
+// кнопка
+<button
+  className="mt-4 bg-purple-600 text-white px-6 py-2 rounded-xl shadow"
+  onClick={saveKey}
+>
+  Додати API ключ
+</button>
 }
+
