@@ -11,15 +11,26 @@ export default function App() {
     setLink(url);
   };
 
+  // API Key speichern
+  const saveKey = () => {
+    const key = prompt("Введіть ваш OpenAI API ключ:");
+    if (key) {
+      localStorage.setItem("OPENAI_API_KEY", key);
+      alert("Ключ збережено ✅");
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100 p-6">
       <h1 className="text-3xl font-bold mb-6">wikigpt</h1>
+
       <input
         className="border rounded-xl px-4 py-2 w-96"
         placeholder="Введіть запит..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
+
       <button
         className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl shadow"
         onClick={generateLink}
@@ -35,22 +46,14 @@ export default function App() {
           </a>
         </div>
       )}
+
+      {/* Button zum Speichern des API Keys */}
+      <button
+        className="mt-4 bg-purple-600 text-white px-6 py-2 rounded-xl shadow"
+        onClick={saveKey}
+      >
+        Додати API ключ
+      </button>
     </div>
   );
-  const saveKey = () => {
-  const key = prompt("Введіть ваш OpenAI API ключ:");
-  if (key) {
-    localStorage.setItem("OPENAI_API_KEY", key);
-    alert("Ключ збережено ✅");
-  }
-};
-
-// кнопка
-<button
-  className="mt-4 bg-purple-600 text-white px-6 py-2 rounded-xl shadow"
-  onClick={saveKey}
->
-  Додати API ключ
-</button>
 }
-
