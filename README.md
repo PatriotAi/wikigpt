@@ -31,6 +31,6 @@ npm run build
 
 - [React 19](https://react.dev/) + [Vite 8](https://vite.dev/)
 - [React Router 7](https://reactrouter.com/)
-- [Tailwind CSS 3](https://tailwindcss.com/)
+- [Tailwind CSS 4](https://tailwindcss.com/)
 - [Wikipedia REST API](https://en.wikipedia.org/api/rest_v1/)
 - [OpenAI API](https://platform.openai.com/docs/)
