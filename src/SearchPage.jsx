@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 
 const MAX_Q_LENGTH = 500;
@@ -167,7 +167,7 @@ export default function SearchPage() {
           </button>
 
           <button
-            onClick={() => navigator.clipboard.writeText(window.location.href)}
+            onClick={() => navigator.clipboard.writeText(window.location.href).catch(() => {})}
             className="bg-gray-200 px-6 py-2 rounded-xl shadow hover:bg-gray-300"
             aria-label="Скопіювати посилання у буфер обміну"
           >

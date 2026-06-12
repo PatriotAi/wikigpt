@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -6,11 +6,12 @@ export default function App() {
   const [apiKey, setApiKey] = useState("");
   const [keySaved, setKeySaved] = useState(false);
   const [saveError, setSaveError] = useState(null);
-  const [hasKey, setHasKey] = useState(false);
+  const [hasKey, setHasKey] = useState(
+    () => !!localStorage.getItem("OPENAI_API_KEY")
+  );
   const timeoutRef = useRef(null);
 
   useEffect(() => {
-    setHasKey(!!localStorage.getItem("OPENAI_API_KEY"));
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
