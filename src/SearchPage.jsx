@@ -1,35 +1,38 @@
 import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 export default function SearchPage() {
+  const [searchParams] = useSearchParams();
+  const q = searchParams.get("q") || "";
+
   const [typed, setTyped] = useState("");
   const [answer, setAnswer] = useState(null);
-  const params = new URLSearchParams(window.location.search);
-  const q = params.get("q");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Animation: Tippen simulieren
   useEffect(() => {
-    if (q) {
-      let i = 0;
-      const interval = setInterval(() => {
-        setTyped(q.slice(0, i + 1));
-        i++;
-        if (i >= q.length) clearInterval(interval);
-      }, 120);
-    }
+    if (!q) return;
+    let i = 0;
+    const interval = setInterval(() => {
+      setTyped(q.slice(0, i + 1));
+      i++;
+      if (i >= q.length) clearInterval(interval);
+    }, 120);
+    return () => clearInterval(interval);
   }, [q]);
 
-  const wikiLink = `https://chatgpt.com/g/g-68bedab30d248191887be109dcf7aea6-wiki-analizator?q=${encodeURIComponent(
-    q || ""
-  )}`;
+  const wikiLink = `https://chatgpt.com/g/g-68bedab30d248191887be109dcf7aea6-wiki-analizator?q=${encodeURIComponent(q)}`;
 
-  // API Anfrage mit eigenem Key
   const askGPT = async () => {
-    const apiKey =
-      localStorage.getItem("OPENAI_API_KEY") || process.env.OPENAI_API_KEY;
+    const apiKey = localStorage.getItem("OPENAI_API_KEY");
     if (!apiKey) {
-      alert("У вас немає API ключа! Додайте свій у налаштуваннях.");
+      setError("API ключ відсутній. Додайте свій ключ на головній сторінці.");
       return;
     }
+
+    setLoading(true);
+    setError(null);
+    setAnswer(null);
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -44,53 +47,83 @@ export default function SearchPage() {
         }),
       });
 
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `Помилка HTTP: ${res.status}`);
+      }
+
       const data = await res.json();
-      setAnswer(data.choices?.[0]?.message?.content || "Помилка");
+      setAnswer(data.choices?.[0]?.message?.content || "Порожня відповідь");
     } catch (err) {
-      setAnswer("Сталася помилка при зверненні до API ❌");
+      setError(err.message || "Сталася помилка при зверненні до API");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-white p-6">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
       <div className="border px-4 py-2 rounded-xl shadow w-96">
-        <input className="w-full outline-none" value={typed} readOnly />
+        <label htmlFor="typed-query" className="sr-only">
+          Запит: {q}
+        </label>
+        <input
+          id="typed-query"
+          className="w-full outline-none"
+          value={typed}
+          readOnly
+          aria-live="polite"
+        />
       </div>
-      <p className="mt-6 text-gray-500">Набираємо ваш запит...</p>
+
+      {typed !== q && (
+        <p className="mt-6 text-gray-500" aria-live="polite">
+          Набираємо ваш запит...
+        </p>
+      )}
 
       {typed === q && q && (
-        <div className="mt-6 flex flex-col gap-3">
-          {/* Kostenlos: Weiterleitung zum Wiki-Analysator */}
+        <div className="mt-6 flex flex-col gap-3 w-96">
           <a
             href={wikiLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-blue-600 text-white px-6 py-2 rounded-xl shadow text-center"
+            className="bg-blue-600 text-white px-6 py-2 rounded-xl shadow text-center hover:bg-blue-700"
           >
             Відкрити в Wiki-Аналізаторі
           </a>
 
-          {/* Direktantwort über API */}
           <button
             onClick={askGPT}
-            className="bg-green-600 text-white px-6 py-2 rounded-xl shadow"
+            disabled={loading}
+            className="bg-green-600 text-white px-6 py-2 rounded-xl shadow hover:bg-green-700 disabled:opacity-50"
           >
-            Отримати відповідь тут
+            {loading ? "Завантаження..." : "Отримати відповідь тут"}
           </button>
 
-          {/* Link kopieren */}
           <button
             onClick={() => navigator.clipboard.writeText(window.location.href)}
-            className="bg-gray-200 px-6 py-2 rounded-xl shadow"
+            className="bg-gray-200 px-6 py-2 rounded-xl shadow hover:bg-gray-300"
           >
             Скопіювати посилання
           </button>
         </div>
       )}
 
-      {/* GPT Antwort */}
+      {error && (
+        <div
+          role="alert"
+          className="mt-6 p-4 border border-red-300 rounded-xl shadow w-96 bg-red-50 text-sm text-red-700"
+        >
+          {error}
+        </div>
+      )}
+
       {answer && (
-        <div className="mt-6 p-4 border rounded-xl shadow w-96 bg-gray-50 text-sm whitespace-pre-wrap">
+        <div
+          className="mt-6 p-4 border rounded-xl shadow w-96 bg-gray-50 text-sm whitespace-pre-wrap"
+          aria-live="polite"
+        >
           {answer}
         </div>
       )}
