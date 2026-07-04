@@ -1,27 +1,39 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import {
+  MAX_QUERY_LENGTH,
+  MAX_WIKI_EXTRACT_LENGTH,
+  OPENAI_MODEL,
+  OPENAI_MODEL_LABEL,
+} from "./config";
+import { readApiKey } from "./storage";
 
-const MAX_Q_LENGTH = 500;
+// Typing animation: total duration is capped so long queries don't block the UI.
+const TYPING_TICK_MS = 120;
+const TYPING_MAX_TICKS = 25;
 
-async function fetchWikipediaSummary(query) {
+async function fetchWikipediaSummary(query, signal) {
   const encoded = encodeURIComponent(query);
   for (const lang of ["uk", "en"]) {
     try {
       const res = await fetch(
         `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encoded}`,
-        { headers: { Accept: "application/json" } }
+        { headers: { Accept: "application/json" }, signal }
       );
       if (res.ok) {
         const data = await res.json();
-        return {
-          extract: data.extract,
-          title: data.title,
-          lang,
-          url: data.content_urls?.desktop?.page,
-        };
+        if (typeof data.extract === "string" && data.extract.trim()) {
+          return {
+            extract: data.extract.slice(0, MAX_WIKI_EXTRACT_LENGTH),
+            title: data.title,
+            lang,
+            url: data.content_urls?.desktop?.page,
+          };
+        }
       }
-    } catch {
-      // try next language
+    } catch (err) {
+      if (err.name === "AbortError") throw err;
+      // network error — try next language
     }
   }
   return null;
@@ -30,24 +42,49 @@ async function fetchWikipediaSummary(query) {
 export default function SearchPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const q = (searchParams.get("q") || "").slice(0, MAX_Q_LENGTH);
+  const q = (searchParams.get("q") || "").slice(0, MAX_QUERY_LENGTH);
 
+  if (!q) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6 gap-4">
+        <p className="text-gray-500">Запит не вказаний.</p>
+        <button
+          onClick={() => navigate("/")}
+          className="text-blue-600 underline hover:text-blue-800"
+        >
+          ← Повернутися на головну
+        </button>
+      </div>
+    );
+  }
+
+  // key={q} remounts the view when the query changes, so answer/error/typed
+  // state can never leak from the previous query.
+  return <SearchView key={q} q={q} navigate={navigate} />;
+}
+
+function SearchView({ q, navigate }) {
   const [typed, setTyped] = useState("");
   const [answer, setAnswer] = useState(null);
   const [wikiData, setWikiData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const abortRef = useRef(null);
 
   useEffect(() => {
-    if (!q) return;
+    const step = Math.max(1, Math.ceil(q.length / TYPING_MAX_TICKS));
     let i = 0;
     const interval = setInterval(() => {
-      setTyped(q.slice(0, i + 1));
-      i++;
+      i = Math.min(i + step, q.length);
+      setTyped(q.slice(0, i));
       if (i >= q.length) clearInterval(interval);
-    }, 120);
+    }, TYPING_TICK_MS);
     return () => clearInterval(interval);
   }, [q]);
+
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
 
   const wikiLink = useMemo(
     () =>
@@ -56,11 +93,15 @@ export default function SearchPage() {
   );
 
   const askGPT = async () => {
-    const apiKey = localStorage.getItem("OPENAI_API_KEY");
+    const apiKey = readApiKey();
     if (!apiKey) {
       setError("API ключ відсутній. Додайте свій ключ на головній сторінці.");
       return;
     }
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setLoading(true);
     setError(null);
@@ -68,7 +109,7 @@ export default function SearchPage() {
     setWikiData(null);
 
     try {
-      const wiki = await fetchWikipediaSummary(q);
+      const wiki = await fetchWikipediaSummary(q, controller.signal);
       setWikiData(wiki);
 
       const systemPrompt = wiki
@@ -86,12 +127,13 @@ export default function SearchPage() {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: OPENAI_MODEL,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userContent },
           ],
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -104,25 +146,12 @@ export default function SearchPage() {
       const data = await res.json();
       setAnswer(data.choices?.[0]?.message?.content || "Порожня відповідь");
     } catch (err) {
+      if (err.name === "AbortError") return;
       setError(err.message || "Сталася помилка при зверненні до API");
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) setLoading(false);
     }
   };
-
-  if (!q) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6 gap-4">
-        <p className="text-gray-500">Запит не вказаний.</p>
-        <button
-          onClick={() => navigate("/")}
-          className="text-blue-600 underline hover:text-blue-800"
-        >
-          ← Повернутися на головну
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
@@ -163,11 +192,13 @@ export default function SearchPage() {
           >
             {loading
               ? "Завантаження..."
-              : "Отримати відповідь (Wikipedia + GPT-4o mini)"}
+              : `Отримати відповідь (Wikipedia + ${OPENAI_MODEL_LABEL})`}
           </button>
 
           <button
-            onClick={() => navigator.clipboard.writeText(window.location.href).catch(() => {})}
+            onClick={() =>
+              navigator.clipboard.writeText(window.location.href).catch(() => {})
+            }
             className="bg-gray-200 px-6 py-2 rounded-xl shadow hover:bg-gray-300"
             aria-label="Скопіювати посилання у буфер обміну"
           >

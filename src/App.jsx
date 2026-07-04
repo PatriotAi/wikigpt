@@ -1,21 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
+import { MAX_QUERY_LENGTH } from "./config";
+import { readApiKey, writeApiKey, clearApiKey } from "./storage";
 
 export default function App() {
   const [query, setQuery] = useState("");
   const [link, setLink] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [keySaved, setKeySaved] = useState(false);
   const [saveError, setSaveError] = useState(null);
-  const [hasKey, setHasKey] = useState(
-    () => !!localStorage.getItem("OPENAI_API_KEY")
-  );
-  const timeoutRef = useRef(null);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
+  const [hasKey, setHasKey] = useState(() => !!readApiKey());
 
   const generateLink = () => {
     if (!query.trim()) return;
@@ -31,23 +23,20 @@ export default function App() {
     e.preventDefault();
     const trimmed = apiKey.trim();
     if (!trimmed) return;
-    try {
-      localStorage.setItem("OPENAI_API_KEY", trimmed);
+    if (writeApiKey(trimmed)) {
       setApiKey("");
       setHasKey(true);
       setSaveError(null);
-      setKeySaved(true);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => setKeySaved(false), 3000);
-    } catch {
-      setSaveError("Неможливо зберегти ключ: браузер заблокував localStorage (приватний режим?).");
+    } else {
+      setSaveError(
+        "Неможливо зберегти ключ: браузер заблокував localStorage (приватний режим?)."
+      );
     }
   };
 
   const removeKey = () => {
-    localStorage.removeItem("OPENAI_API_KEY");
+    clearApiKey();
     setHasKey(false);
-    setKeySaved(false);
   };
 
   return (
@@ -68,10 +57,10 @@ export default function App() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleQueryKeyDown}
-          maxLength={500}
+          maxLength={MAX_QUERY_LENGTH}
         />
         <p className="text-xs text-gray-400 mt-1 text-right">
-          {query.length}/500
+          {query.length}/{MAX_QUERY_LENGTH}
         </p>
       </div>
 
@@ -86,10 +75,7 @@ export default function App() {
       {link && (
         <div className="mt-6 w-full max-w-md">
           <p className="mb-1 text-gray-700 text-sm">Ваше посилання:</p>
-          <a
-            href={link}
-            className="text-blue-600 underline break-all text-sm"
-          >
+          <a href={link} className="text-blue-600 underline break-all text-sm">
             {link}
           </a>
         </div>
@@ -137,7 +123,7 @@ export default function App() {
               className="bg-purple-600 text-white px-6 py-2 rounded-xl shadow hover:bg-purple-700 disabled:opacity-50 w-full"
               disabled={!apiKey.trim()}
             >
-              {keySaved ? "Ключ збережено ✓" : "Зберегти API ключ"}
+              Зберегти API ключ
             </button>
           </form>
         )}
